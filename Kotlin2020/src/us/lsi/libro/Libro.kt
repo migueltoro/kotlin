@@ -14,10 +14,10 @@ import us.lsi.tools.File
 object Libro {
 	
 	
-	val palabrasHuecas:Set<String> = File.lineasFromFile("ficheros/palabras_huecas.txt").toSet()
+	val palabrasHuecas:Set<String> = File.lineasFromFile("recursos/palabras_huecas.txt").toSet()
 	val separadores = "[- ,;.\n()?¿!¡:\"]"
 	
-	var f = { linea:String -> linea.split(Libro.separadores).asSequence().filter({ !it.isEmpty() }) }
+	val lineasAPalabras = { linea:String -> linea.split(Regex(Libro.separadores)).asSequence().filter({ !it.isEmpty() }) }
 
 	fun numeroDeLineas(fichero: String): Int {
 		return File.sequenceFromFile(fichero).count()
@@ -25,14 +25,14 @@ object Libro {
 
 	fun numeroDePalabrasDistintas(fichero: String): Int {
 		return File.sequenceFromFile(fichero)
-			.flatMap(f)
+			.flatMap(lineasAPalabras)
 			.distinct()
 			.count()
 	}
 
 	fun numeroDePalabrasDistintasNoHuecas(fichero: String): Int {
 		return File.sequenceFromFile(fichero)
-			.flatMap(f)
+			.flatMap(lineasAPalabras)
 			.distinct()
 			.filter({ p -> !Libro.palabrasHuecas.contains(p) })
 			.count()
@@ -69,30 +69,33 @@ object Libro {
 			.value
 	}
 
-	fun frecuenciasDePalabras(fichero: String): Map<String,Int> {
+	fun frecuenciasDePalabras(fichero: String): SortedMap<String,Int> {
 		return File.sequenceFromFile(fichero)
-			.flatMap(f)
+			.flatMap({linea->lineasAPalabras(linea)})
 			.groupingBy({p->p})
 		    .fold(0){a,_->a+1}
+		    .toSortedMap()
 	}
 
-	fun palabrasPorFrecuencias(fichero: String): Map<Int, Set<String>> {
+	fun palabrasPorFrecuencias(fichero: String): SortedMap<Int, Set<String>> {
 		return frecuenciasDePalabras(fichero).entries
 			.groupingBy({e->e.value})
-		    .fold(mutableSetOf<String>(),{a,e->a+e.key})			
+		    .fold(setOf<String>(),{a,e->a+e.key})
+		    .toSortedMap()			
 	}
 
 	private fun lineasAPalabras2(nl: IndexedValue<String>): Sequence<IndexedValue<String>> {
-		return nl.value.split(Libro.separadores).asSequence()
+		return nl.value.split(Regex(Libro.separadores)).asSequence()
 			.map({ p -> IndexedValue(nl.index, p) })
 	}
 
-	fun lineasDePalabra(fichero: String): Map<String, Set<Int>> {
+	fun lineasDePalabra(fichero: String): SortedMap<String, Set<Int>> {
 		return File.sequenceFromFile(fichero).withIndex()
 			.flatMap({linea -> lineasAPalabras2(linea) })
 			.filter({ np -> np.value.length > 0 })
 			.groupingBy({p->p.value})
-			.fold(setOf<String>()){a:Set<String>,e:String->a+e}			
+			.fold(setOf<Int>()) {a,e:IndexedValue<String>->a+e.index}
+		    .toSortedMap()		
 	}
 
 	
