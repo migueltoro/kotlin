@@ -3,7 +3,7 @@ package us.lsi.whatsapp
 import us.lsi.tools.File
 import java.time.LocalDate
 import java.time.LocalTime
-import us.lsi.tools.Functions.identity
+import java.util.SortedMap
 
 data class Conversacion(val mensajes: List<Mensaje>) {
 	
@@ -20,7 +20,7 @@ data class Conversacion(val mensajes: List<Mensaje>) {
 	companion object {
 		val separadores = "[- ,;.\n()?¿!¡:\"]"	
 		val textoAPalabras = {t:String -> t.split(separadores.toRegex()).asSequence().filter({ !it.isEmpty() }) }
-		val palabrasHuecas: Set<String> = File.lineasFromFile("resources/palabras_huecas.txt").filter({x->x.length>0}).toSet()
+		val palabrasHuecas: Set<String> = File.lineasFromFile("recursos/palabras_huecas.txt").filter({x->x.length>0}).toSet()
 		fun data(file:String): Conversacion {		
 			val mensajes = File.sequenceFromFile(file)
 					.filter({x->x.length>0})
@@ -30,9 +30,17 @@ data class Conversacion(val mensajes: List<Mensaje>) {
 		}
 		@JvmStatic
 		fun main(args: Array<String>) {
-			val m = Conversacion.data("resources/bigbangtheory_es.txt")
-			println(m)
+			val m = Conversacion.data("recursos/bigbangtheory_es.txt")
+//			println(m)
+			print(m.palabrasCaracteristicasDeUsuario("Leonard",3).entries.asSequence()
+				.sortedByDescending({e->e.value})
+				.joinToString(separator="\n"))
 		}
+	}
+	
+	override
+	fun  toString(): String {
+		return this.mensajes.joinToString(separator="\n")
 	}
 	
 	var _frecuenciaDePalabras: Map<String,Int>? = null
@@ -75,10 +83,54 @@ data class Conversacion(val mensajes: List<Mensaje>) {
 				.groupingBy({e->e.first})
 				.fold(0) {a:Int,e:Pair<String,Int> -> a+e.second}
 		}
+
+	private var _frecuenciaDePalabrasPorRestoDeUsuarios: MutableMap<UsuarioPalabra, Int>? = null
+	val frecuenciaDePalabrasPorRestoDeUsuarios: Map<UsuarioPalabra, Int>
+		get() {
+			if (this._frecuenciaDePalabrasPorRestoDeUsuarios == null) {
+				val fpal = this.frecuenciaDePalabrasPorUsuario.entries.asSequence()           
+				var d = mutableMapOf<UsuarioPalabra, Int>()
+				for (e in fpal) {
+					for (x in this.usuarios) {
+						if (x != e.key.usuario) {
+							val up = UsuarioPalabra.of(x, e.key.palabra)
+							d[up] = d.getOrElse(up, {0}) + e.value
+						}
+					}
+				}
+				this._frecuenciaDePalabrasPorRestoDeUsuarios = d
+			}
+			return this._frecuenciaDePalabrasPorRestoDeUsuarios ?: this._frecuenciaDePalabrasPorRestoDeUsuarios!!
+		}
+
+
+	val numeroDePalabrasPorRestoDeUsuarios: Map<String, Int>
+		get() {
+			return frecuenciaDePalabrasPorRestoDeUsuarios.entries
+			.map({ e -> Pair(e.key.usuario, e.value) })
+			.groupingBy({ e -> e.first })
+			.fold(0) { a: Int, e: Pair<String, Int> -> a + e.second }
+		}
 	
-	override
-	fun  toString(): String {
-		return this.mensajes.joinToString(separator="\n")
+	fun importanciaDePalabra(usuario:String,palabra:String) : Double {
+		val up = UsuarioPalabra.of(usuario,palabra)
+		val npu = this.numeroDePalabrasPorUsuario.getOrElse(usuario,{1}).toDouble()
+		val npru = this.numeroDePalabrasPorRestoDeUsuarios.getOrElse(usuario,{1}).toDouble()
+        return (this.frecuenciaDePalabrasPorUsuario.getOrElse(up,{0}).toDouble()
+                / npu) * 
+                (this.frecuenciaDePalabrasPorRestoDeUsuarios.getOrElse(up,{0}).toDouble() 
+                / npru)
+	}
+	
+	fun palabrasCaracteristicasDeUsuario(usuario:String,umbral:Int): SortedMap<String,Double> {
+		return this.frecuenciaDePalabrasPorUsuario.entries.asSequence()
+				.filter({e-> e.key.usuario == usuario})
+		        .filter({e->this.frecuenciaDePalabras.getOrElse(e.key.palabra,{0}) > umbral})
+		        .filter({e->e.value > umbral})
+				.filter({e->this.frecuenciaDePalabrasPorRestoDeUsuarios.getOrElse(e.key,{0}) > umbral})
+				.map({e->Pair(e.key.palabra,this.importanciaDePalabra(e.key.usuario,e.key.palabra))})
+				.toMap()
+		        .toSortedMap()
 	}
 	
 	

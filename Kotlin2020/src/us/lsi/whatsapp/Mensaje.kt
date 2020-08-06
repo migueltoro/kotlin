@@ -41,7 +41,7 @@ data class Mensaje(val fecha: LocalDate, val hora: LocalTime, val usuario: Strin
 
 	override
 	fun toString(): String {
-		return String.format("%s,%s,%10s,%s", fecha.toString(), hora.toString(), usuario, texto)
+		return String.format("%s,%s,%10s\n   %s", fecha.toString(), hora.toString(), usuario, texto)
 	}
 
 }
